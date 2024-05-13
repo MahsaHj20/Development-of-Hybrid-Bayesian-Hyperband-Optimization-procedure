@@ -1,0 +1,81 @@
+import numpy as np
+import pandas as pd
+from sklearn.model_selection import train_test_split
+from sklearn.ensemble import AdaBoostRegressor
+from sklearn.metrics import mean_squared_error
+from sklearn.tree import DecisionTreeRegressor
+from sklearn.ensemble import RandomForestRegressor
+from sklearn.svm import SVR
+
+# Load a sample dataset 
+Dataset1 = pd.read_csv("E:/Train.csv")
+X = Dataset1.iloc[:, [0, 1, 2, 3, 4, 5, 6, 7, 8]].values
+y = Dataset1.iloc[:, 9].values
+
+# Split the data into training and testing sets
+X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
+
+# Define the extended search space for hyperparameters
+param_space = {
+    'n_estimators': (10, 500),
+    'learning_rate': (0.01, 1.0),
+    'loss': ['linear', 'square', 'exponential'],
+    'estimator': [DecisionTreeRegressor(), RandomForestRegressor(), SVR()] 
+}
+
+# HyperBand Parameters
+max_iter = 81  # maximum iterations per configuration
+eta = 3  # defines downsampling rate (default=3)
+
+# Objective function for AdaBoostRegressor
+def objective(params):
+    abr = AdaBoostRegressor(
+        base_estimator=params['estimator'],
+        n_estimators=params['n_estimators'],
+        learning_rate=params['learning_rate'],
+        loss=params['loss']
+    )
+    abr.fit(X_train, y_train)
+    predictions1 = abr.predict(X_test)
+    mse = mean_squared_error(y_test, predictions1)
+    return mse
+
+# BOHB Optimization
+def bohb_optimization(objective, param_space, max_iter, eta):
+    results = []
+
+    for i in range(max_iter):
+        sampled_params = {}
+
+        for key in param_space:
+            sampled_params[key] = np.random.choice(param_space[key])
+
+        result = {'params': sampled_params, 'loss': objective(sampled_params)}
+        results.append(result)
+
+        print(f"Iteration {i + 1}, Loss: {result['loss']}, Params: {result['params']}")
+
+    best_result = min(results, key=lambda x: x['loss'])
+    return best_result['params']
+
+# Perform BOHB Optimization
+best_hyperparameters = bohb_optimization(objective, param_space, max_iter, eta)
+
+# Print the best hyperparameters
+print("Best hyperparameters:", best_hyperparameters)
+
+# Train AdaBoostRegressor with the best hyperparameters
+best_abr = AdaBoostRegressor(**best_hyperparameters)
+best_abr.fit(X_train, y_train)
+
+# Load the test dataset
+Dataset2 = pd.read_csv("E:/Test.csv")
+x2 = Dataset2.iloc[:,[0,1,2,3,4,5,6,7,8]].values
+
+# Make predictions using the best model
+predictions = best_abr.predict(x2)
+
+# Print predictions
+print("Predictions:", predictions)
+
+********************************By: Mahsa.Hajihosseinlou************************
